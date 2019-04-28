@@ -15,7 +15,6 @@ public class SpeakingThread extends Thread {
       String serverHandle = "Mr. Server";
       while ((userInput = stdIn.readLine()) != null) {
         this.buffer.println(serverHandle + "> " + userInput);
-        this.buffer.flush();
       }
     } catch (IOException e) {
       System.err.println("SpeakingThread IO error");
