@@ -4,7 +4,7 @@ CFLAGS = -g -Wall -Wextra
 CFLAGS2 = -g -Wall
 
 chatclient : chatclient.c
-	$(CC) $(CFLAGS) -o $@ $^
+	$(CC) $(CFLAGS2) -o $@ $^
 
 chatserve : chatserve.java
 	$(JAVA) $@ $^
