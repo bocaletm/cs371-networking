@@ -51,46 +51,48 @@ void error(const char *msg) {
  * getName()
  * ***********************/
 void getName(char* name) {
-  int charsEntered = 0;
-  int bufferSize = 1000;
-  char buffer[bufferSize];
+  size_t charsEntered = 0;
+  size_t bufferSize = 1000;
+  char* buffer = malloc(bufferSize * sizeof(char));
   memset(buffer,'\0',bufferSize);
 
-  printf("==>\tWelcome to chatclient...\n\t\tHandle: ");
+  printf("\t==> Welcome to chatclient...\n\t\tHandle: ");
   charsEntered = getline(&buffer, &bufferSize, stdin);
-    /*exit early if length is invalid*/
-  while (charsEntered > NAME_LIMIT) {
+    //exit early if length is invalid
+  while (charsEntered > NAME_LIMIT + 1) {
     printf("\n\tHandle too long. Try a handle up to 10 characters...\n\t\tHandle: ");
     charsEntered = getline(&buffer, &bufferSize, stdin);
   }
-  snprintf(name,(size_t)NAME_LIMIT,"%s",buffer);
+    //omit the newline entered
+  snprintf(name,(size_t)(charsEntered),"%s",buffer);
+  free(buffer);
 }
 
 /**************************
  * getMsg()
  * ***********************/
 void getMsg(char* name,char* msg) {
-  int charsEntered = 0;
-  int bufferSize = 1000;
-  char buffer[bufferSize];
+  size_t charsEntered = 0;
+  size_t bufferSize = 1000;
+  char* buffer = malloc(bufferSize * sizeof(char));
   memset(buffer,'\0',bufferSize);
-
+    //prompt
   printf("%s: ",name);
   charsEntered = getline(&buffer, &bufferSize, stdin);
-    /*exit early if length is invalid*/
-  while (charsEntered > RAW_MSG_LIMIT) {
-    printf("\n\tMessage too long. Try a message up to 10 characters...\n\t\t%s: ",name);
+    //exit early if length is invalid (+1 for newline)
+  while (charsEntered > RAW_MSG_LIMIT + 1) {
+    printf("\n\tMessage too long. Try a message up to %d characters...\n\n%s: ",RAW_MSG_LIMIT,name);
     charsEntered = getline(&buffer, &bufferSize, stdin);
   }
-  //an extra char to null terminate
-  snprintf((msg,(size_t)(MSG_LIMIT + 1)),"%s> %s",name,buffer);
+    //an extra char to null terminate
+  snprintf(msg,(size_t)(MSG_LIMIT),"%s> %s",name,buffer);
 }
 
 /************************
  * socketConnect():  
  * try to connect to the server
  *************************/
-void socketConnect(int port, char* msg) {
+void socketConnect(int port, char* name, char* msg) {
   int socketFD, charsWritten, charsRead;
   struct sockaddr_in serverAddress;
   struct hostent* serverHostInfo;
@@ -167,8 +169,10 @@ void socketConnect(int port, char* msg) {
 int main(int argc, char *argv[]) {
 
   // Check usage & args
-  if (argv[2] == NULL) { 
-    errorx("chatclient: wrong number of args\n"); 
+  if (argc < 3) { 
+    errorx("chatclient: missing args\n"); 
+  } else if (argc > 3) {
+    errorx("chatclient: too many args\n"); 
   }
   
   //vars to hold messages
@@ -186,12 +190,8 @@ int main(int argc, char *argv[]) {
 
   while (1) {
     getName(name);
-    getMsg(name,msg);
-    printf("\n%s : %s",name,msg);
-    //socketConnect(name,rawMsg,msg,atoi(argv[1]),argv[2]);
+    printf("\nTrying to connect to %s on port %s...\n\n",argv[1],argv[2]);
+    socketConnect(argv[1],atoi(argv[2]),name,msg);
   }
-  //compose msg including authentication prefix
-  //snprintf(msg,(size_t)msgLimit,"e%s;%s@",key,plaintext);
-  
   return 0;
 }
