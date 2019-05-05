@@ -17,20 +17,20 @@ public class chatserve {
       System.err.println("Usage: java chatserve - argument count is not 1");
       System.exit(1);
     }
-      //message variables
+    //message variables
     String clientPort = "Error";
     String inputLine = "";
     byte[] message = new byte[512];
     boolean endMessage = false;
     boolean firstMessage = true;
-      //socket variables
+    //socket variables
     int port = Integer.parseInt(args[0]);
     ServerSocket serverSocket = new ServerSocket(port);
     Socket clientSocket;
-      //socket IO buffers
+    //socket IO buffers
     PrintWriter outputBuffer; 
     BufferedReader inputBuffer;  
-      //thread to handle writing back to client
+    //thread to handle writing back to client
     SpeakingThread myThread; 
     while (true) {
       System.out.println("\nServer waiting for a connection on port " + port);

@@ -14,7 +14,11 @@ public class SpeakingThread extends Thread {
       String userInput;
       System.out.print(Globals.SERVER_HANDLE + ": ");
       while ((userInput = stdIn.readLine()) != null) {
-        this.buffer.println(Globals.SERVER_HANDLE + "> " + userInput);
+        if (userInput.length() <= 500) {
+          this.buffer.println(Globals.SERVER_HANDLE + "> " + userInput);
+        } else {
+          System.out.println("\tMessage too long--not sent. Keep it under 500 characters.");
+        }
         System.out.print(Globals.SERVER_HANDLE + ": ");
       }
     } catch (IOException e) {

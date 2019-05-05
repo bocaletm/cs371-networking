@@ -24,6 +24,8 @@ const int MSG_LIMIT = 512;
 const int RAW_MSG_LIMIT = 500;
 //pointer to the name that the thread can access
 char* NAME = 0;
+//flag the thread sets upon termination
+int threadQuit = 0;
 
 /********************
  * checkMem(): checks if malloc
@@ -54,10 +56,11 @@ void error(const char *msg) {
 /******************
  * listeningThread()
  * reads from the socket and prints to stdout
+ * sets global flag threadQuit if quit is received
  * ***************/
 void* listeningThread(void* socketFD){
   int fd = *((int*)socketFD);
-  char buffer[MSG_LIMIT];
+  char buffer[MSG_LIMIT + 20];
   int charsRead = 0;
   while(1) {
     // Get return message from server
@@ -69,11 +72,17 @@ void* listeningThread(void* socketFD){
       close(fd); // Close the socket
       errorx("CLIENT: ERROR reading from socket\n");
     } else {
-      printf("\n%s", buffer);
-      fflush(stdout);
-      //reset the prompt
-      printf("%s: ",NAME);
-      fflush(stdout);
+      if (strstr(buffer,"/quit") != NULL) {
+        threadQuit =  1;
+        printf("\nReceived /quit... Disconnecting from server...\n");
+        break;
+      } else {
+        printf("\n%s", buffer);
+        fflush(stdout);
+        //reset the prompt
+        printf("%s: ",NAME);
+        fflush(stdout);
+      }
     }
   }
   return NULL;
@@ -103,8 +112,9 @@ void getName(char* name) {
 
 /**************************
  * getMsg()
+ * returns 1 if /quit is typed
  * ***********************/
-void getMsg(char* name,char* msg) {
+int getMsg(char* name,char* msg) {
   size_t charsEntered = 0;
   size_t bufferSize = 1000;
   char* buffer = malloc(bufferSize * sizeof(char));
@@ -119,6 +129,11 @@ void getMsg(char* name,char* msg) {
   }
   snprintf(msg,(size_t)(MSG_LIMIT),"%s> %s",name,buffer);
   free(buffer);
+  if (strstr(msg,"/quit") != NULL) {
+    return 1;
+  } else {
+    return 0;
+  }
 }
 
 /************************
@@ -147,6 +162,8 @@ int sendPort(int socketFD,int port) {
  * try to connect to the server
  *************************/
 void socketConnect(char* hostName, int port, char* name, char* msg) {
+    //handles sending quit message
+  int quit = 0;
   int socketFD, charsWritten;
   struct sockaddr_in serverAddress;
   struct hostent* serverHostInfo;
@@ -178,11 +195,10 @@ void socketConnect(char* hostName, int port, char* name, char* msg) {
 
   // Send the port 
   int successfulPeerConnect = sendPort(socketFD,port);
-
+  int result_code = 1; //for thread creation
+  pthread_t thread;
   if (successfulPeerConnect) {
     //read from peer in separate thread
-    pthread_t thread;
-    int result_code = 1;
     result_code = pthread_create(&thread,NULL,listeningThread,&socketFD);
     if (result_code != 0) {
       errorx("Error with listening thread\n");
@@ -190,21 +206,26 @@ void socketConnect(char* hostName, int port, char* name, char* msg) {
     //write to peer
     while(1) {  
       //get the message 
-      getMsg(name,msg);
-
+      quit = getMsg(name,msg);
       // Send message to server
       int totalSent = 0; 
       while (totalSent < strlen(msg)) {
         charsWritten = send(socketFD, msg, strlen(msg), 0); // Write to the server
         totalSent += charsWritten;
       }
+      if (quit || threadQuit) {
+        //program will exit
+        break;
+      }
     }
-
   } else {
     printf("Could not connect to peer\n");
     fflush(stdout);
   }
-  close(socketFD); // Close the socket
+    //close listening thread
+  pthread_cancel(thread);
+    //close the socket
+  close(socketFD); 
 }
 
 /**************************
@@ -228,16 +249,16 @@ int main(int argc, char *argv[]) {
   memset(msg,'\0',(MSG_LIMIT + 1));
   checkMem(msg,230);
 
-  while (1) {
-    getName(name);
-    //make the name globally accessible
-    NAME = name;
-    printf("\nTrying to connect to %s on port %s...\n\n",argv[1],argv[2]);
-    socketConnect(argv[1],atoi(argv[2]),name,msg);
-  }
+  getName(name);
+  //make the name globally accessible
+  NAME = name;
+  printf("\nTrying to connect to %s on port %s...\n\n",argv[1],argv[2]);
+  socketConnect(argv[1],atoi(argv[2]),name,msg);
 
   free(name);
   free(msg);
+  
+  printf("\nExiting successfully...\n");
 
   return 0;
 }
