@@ -2,14 +2,15 @@ CC = gcc
 JC = javac
 
 CFLAGS = -g -Wall -Wextra 
-CFLAGS2 = -g -Wall
+CFLAGS2 = -g -Wall -pthread
 
 .SUFFIXES: .java .class
 .java.class:
 	$(JC) $*.java
 JAVA_SRC = \
 				chatserve.java \
-				SpeakingThread.java
+				SpeakingThread.java \
+				Globals.java
 
 default: classes chatclient
 
@@ -27,3 +28,4 @@ clean :
 	-if [ -f chatserve.class ]; then rm chatserve.class 2> /dev/null; fi
 	-if [ -f SpeakingThread.class ]; then rm SpeakingThread.class 2> /dev/null; fi
 	-if [ -f EchoClient.class ]; then rm EchoClient.class 2> /dev/null; fi
+	-if [ -f Globals.class ]; then rm Globals.class 2> /dev/null; fi

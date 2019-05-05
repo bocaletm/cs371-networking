@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #define h_addr h_addr_list[0]   
 
@@ -21,29 +22,6 @@
 const int NAME_LIMIT = 10;
 const int MSG_LIMIT = 512;
 const int RAW_MSG_LIMIT = 500;
-
-/******************
- * listeningThread()
- * reads from the socket and prints to stdout
- * ***************/
-void* listeningThread(){
-  char buffer[MSG_LIMIT];
-  while(1) {
-    // Get return message from server
-    memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer for reuse
-    while(strstr(buffer,"\n") == NULL) {
-      charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
-    }
-    if (charsRead < 0) {
-      close(socketFD); // Close the socket
-      errorx("CLIENT: ERROR reading from socket\n");
-    } else {
-      printf("%s", buffer);
-      fflush(stdout);
-    }
-  }
-  return NULL;
-}
 
 /********************
  * checkMem(): checks if malloc
@@ -70,6 +48,32 @@ void errorx(const char *msg) {
 void error(const char *msg) { 
   fprintf(stderr,msg);
 }
+
+/******************
+ * listeningThread()
+ * reads from the socket and prints to stdout
+ * ***************/
+void* listeningThread(void* socketFD){
+  int fd = *((int*)socketFD);
+  char buffer[MSG_LIMIT];
+  int charsRead = 0;
+  while(1) {
+    // Get return message from server
+    memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer for reuse
+    while(strstr(buffer,"\n") == NULL) {
+      charsRead = recv(fd, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
+    }
+    if (charsRead < 0) {
+      close(fd); // Close the socket
+      errorx("CLIENT: ERROR reading from socket\n");
+    } else {
+      printf("%s", buffer);
+      fflush(stdout);
+    }
+  }
+  return NULL;
+}
+
 
 /**************************
  * getName()
@@ -115,24 +119,30 @@ void getMsg(char* name,char* msg) {
 /************************
  * sendPort():  
  * sends port to the server
+ * returns 1 if no error is found
  *************************/
 int sendPort(int socketFD,int port) {
   int totalSent = 0; 
   int charsWritten = 0;
-  int error = 0;
-  while (totalSent < strlen(itoa(port))) {
-    charsWritten = send(socketFD, itoa(port), strlen(itoa(port)), 0); // Write to the server
+  int errorCode = 1;
+    //convert port to string
+  char stringPort[6];
+  memset(stringPort,'\0',6);
+  snprintf(stringPort,sizeof(stringPort),"%d",port);
+  while (totalSent < strlen(stringPort)) {
+      //write the port to the server
+    charsWritten = send(socketFD, stringPort, strlen(stringPort), 0); 
     totalSent += charsWritten;
     if (charsWritten < 0) {
-      error("CLIENT: ERROR writing to socket");
-      error = 1;
+      error("CLIENT: ERROR writing to socket\n");
+      errorCode = 0;
     }
-    if (charsWritten < strlen(itoa(port))) {
+    if (charsWritten < strlen(stringPort)) {
       error("CLIENT: WARNING: Not all data written to socket!\n");
-      error = 1;
+      errorCode = 0;
     }
   }
-  return error;
+  return errorCode;
 }
 
 /************************
@@ -140,7 +150,7 @@ int sendPort(int socketFD,int port) {
  * try to connect to the server
  *************************/
 void socketConnect(char* hostName, int port, char* name, char* msg) {
-  int socketFD, charsWritten, charsRead;
+  int socketFD, charsWritten;
   struct sockaddr_in serverAddress;
   struct hostent* serverHostInfo;
   char buffer[MSG_LIMIT];
@@ -155,8 +165,8 @@ void socketConnect(char* hostName, int port, char* name, char* msg) {
   }
   memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
 
-  // Set up the socket
-  socketFD = socket(AF_INET, SOCK_STREAM, 0); // Create the socket
+  // create the socket
+  socketFD = socket(AF_INET, SOCK_STREAM, 0); 
   if (socketFD < 0) { 
     error("CLIENT: ERROR opening socket\n");
   }
@@ -177,9 +187,9 @@ void socketConnect(char* hostName, int port, char* name, char* msg) {
     //read from peer in separate thread
     pthread_t thread;
     int result_code = 1;
-    result_code = pthread_create(&thread,NULL,listeningThread,NULL);
+    result_code = pthread_create(&thread,NULL,listeningThread,&socketFD);
     if (result_code != 0) {
-      error("Error with listening thread\n");
+      errorx("Error with listening thread\n");
     } 
     //write to peer
     while(1) {  
@@ -191,12 +201,6 @@ void socketConnect(char* hostName, int port, char* name, char* msg) {
       while (totalSent < strlen(msg)) {
         charsWritten = send(socketFD, msg, strlen(msg), 0); // Write to the server
         totalSent += charsWritten;
-        if (charsWritten < 0) {
-          error("CLIENT: ERROR writing to socket");
-        }
-        if (charsWritten < strlen(buffer)) {
-          error("CLIENT: WARNING: Not all data written to socket!\n");
-        }
       }
     }
 
