@@ -22,6 +22,8 @@
 const int NAME_LIMIT = 10;
 const int MSG_LIMIT = 512;
 const int RAW_MSG_LIMIT = 500;
+//pointer to the name that the thread can access
+char* NAME = 0;
 
 /********************
  * checkMem(): checks if malloc
@@ -67,7 +69,10 @@ void* listeningThread(void* socketFD){
       close(fd); // Close the socket
       errorx("CLIENT: ERROR reading from socket\n");
     } else {
-      printf("%s", buffer);
+      printf("\n%s", buffer);
+      fflush(stdout);
+      //reset the prompt
+      printf("%s: ",NAME);
       fflush(stdout);
     }
   }
@@ -112,8 +117,8 @@ void getMsg(char* name,char* msg) {
     printf("\n\tMessage too long. Try a message up to %d characters...\n\n%s: ",RAW_MSG_LIMIT,name);
     charsEntered = getline(&buffer, &bufferSize, stdin);
   }
-  //an extra char to null terminate
   snprintf(msg,(size_t)(MSG_LIMIT),"%s> %s",name,buffer);
+  free(buffer);
 }
 
 /************************
@@ -126,21 +131,13 @@ int sendPort(int socketFD,int port) {
   int charsWritten = 0;
   int errorCode = 1;
     //convert port to string
-  char stringPort[6];
-  memset(stringPort,'\0',6);
-  snprintf(stringPort,sizeof(stringPort),"%d",port);
+  char stringPort[7];
+  memset(stringPort,'\0',7);
+  snprintf(stringPort,sizeof(stringPort),"%d\n",port);
   while (totalSent < strlen(stringPort)) {
       //write the port to the server
     charsWritten = send(socketFD, stringPort, strlen(stringPort), 0); 
     totalSent += charsWritten;
-    if (charsWritten < 0) {
-      error("CLIENT: ERROR writing to socket\n");
-      errorCode = 0;
-    }
-    if (charsWritten < strlen(stringPort)) {
-      error("CLIENT: WARNING: Not all data written to socket!\n");
-      errorCode = 0;
-    }
   }
   return errorCode;
 }
@@ -153,7 +150,6 @@ void socketConnect(char* hostName, int port, char* name, char* msg) {
   int socketFD, charsWritten;
   struct sockaddr_in serverAddress;
   struct hostent* serverHostInfo;
-  char buffer[MSG_LIMIT];
 
   // Set up the server address struct
   memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
@@ -226,20 +222,22 @@ int main(int argc, char *argv[]) {
   //vars to hold messages
   char* name = malloc((NAME_LIMIT + 1) * sizeof(char));
   memset(name,'\0',(NAME_LIMIT + 1));
-  checkMem(name,146);
-
-  char* rawMsg = malloc((RAW_MSG_LIMIT + 1) * sizeof(char));
-  memset(rawMsg,'\0',(RAW_MSG_LIMIT + 1));
-  checkMem(rawMsg,152);
+  checkMem(name,222);
 
   char* msg = malloc((MSG_LIMIT + 1) * sizeof(char));
   memset(msg,'\0',(MSG_LIMIT + 1));
-  checkMem(msg,154);
+  checkMem(msg,230);
 
   while (1) {
     getName(name);
+    //make the name globally accessible
+    NAME = name;
     printf("\nTrying to connect to %s on port %s...\n\n",argv[1],argv[2]);
     socketConnect(argv[1],atoi(argv[2]),name,msg);
   }
+
+  free(name);
+  free(msg);
+
   return 0;
 }

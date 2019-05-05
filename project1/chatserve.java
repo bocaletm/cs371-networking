@@ -26,25 +26,40 @@ public class chatserve {
       //socket variables
     int port = Integer.parseInt(args[0]);
     ServerSocket serverSocket = new ServerSocket(port);
-    Socket clientSocket = serverSocket.accept();
+    Socket clientSocket;
       //socket IO buffers
-    PrintWriter outputBuffer = new PrintWriter(clientSocket.getOutputStream(), true);
-    BufferedReader inputBuffer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+    PrintWriter outputBuffer; 
+    BufferedReader inputBuffer;  
       //thread to handle writing back to client
-    SpeakingThread myThread = new SpeakingThread(outputBuffer);
+    SpeakingThread myThread; 
     while (true) {
+      System.out.println("\nServer waiting for a connection on port " + port);
+      clientSocket = serverSocket.accept();
+      outputBuffer = new PrintWriter(clientSocket.getOutputStream(), true);
+      inputBuffer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+      myThread = new SpeakingThread(outputBuffer);
       try {
         while ((inputLine = inputBuffer.readLine()) != null) {
           if (firstMessage) {
-            System.out.println("Now connected to " + inputLine + ". Ready to receive IMs...");
+            System.out.println("Now connected to " + inputLine + ". Ready to receive IMs...\n");
+            System.out.flush();
             firstMessage = false;
             myThread.start();
           } else if (inputLine.contains("/quit")) {
+            System.out.println("\nReceived /quit... Disconnecting from client...");
             myThread.interrupt();
-            System.exit(0);
+            myThread = null;
+            clientSocket.close();
+            outputBuffer = null;
+            inputBuffer = null;
+            System.gc();
+            firstMessage = true;
+            break;
           } else {
+            System.out.println();
             System.out.println(inputLine);
-            System.out.print(Globals.SERVER_HANDLE + ":");
+            //print the prompt again so incoming messages don't hide it
+            System.out.print(Globals.SERVER_HANDLE + ": ");
           }
         }
       } catch (IOException e) {
