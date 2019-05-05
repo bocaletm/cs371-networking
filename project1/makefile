@@ -27,5 +27,4 @@ clean :
 	-if [ -f chatclient ]; then rm chatclient 2> /dev/null; fi
 	-if [ -f chatserve.class ]; then rm chatserve.class 2> /dev/null; fi
 	-if [ -f SpeakingThread.class ]; then rm SpeakingThread.class 2> /dev/null; fi
-	-if [ -f EchoClient.class ]; then rm EchoClient.class 2> /dev/null; fi
 	-if [ -f Globals.class ]; then rm Globals.class 2> /dev/null; fi
