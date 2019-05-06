@@ -14,7 +14,7 @@ Mario Bocaletti - Simple Chat Client
 
 2. Usage
   - After compilation, open the server program by typing:
-      $ java chatserve <PORT>
+      $ ./chatserve <PORT>
   - Open the client program with the following command:
       $ ./chatclient localhost <PORT> 
   - Use the port of your choice, but ports in the 36000s are suggested
