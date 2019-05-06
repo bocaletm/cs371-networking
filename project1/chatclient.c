@@ -72,9 +72,9 @@ void* listeningThread(void* socketFD){
       close(fd); // Close the socket
       errorx("CLIENT: ERROR reading from socket\n");
     } else {
-      if (strstr(buffer,"/quit") != NULL) {
+      if (strstr(buffer,"\\quit") != NULL) {
         threadQuit =  1;
-        printf("\nReceived /quit... Disconnecting from server...\n");
+        printf("\nReceived \\quit... Disconnecting from server...\n");
         break;
       } else {
         printf("\n%s", buffer);
@@ -129,7 +129,7 @@ int getMsg(char* name,char* msg) {
   }
   snprintf(msg,(size_t)(MSG_LIMIT),"%s> %s",name,buffer);
   free(buffer);
-  if (strstr(msg,"/quit") != NULL) {
+  if (strstr(msg,"\\quit") != NULL) {
     return 1;
   } else {
     return 0;

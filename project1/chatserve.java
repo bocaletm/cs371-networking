@@ -20,12 +20,10 @@ public class chatserve {
     //message variables
     String clientPort = "Error";
     String inputLine = "";
-    byte[] message = new byte[512];
-    boolean endMessage = false;
     boolean firstMessage = true;
     //socket variables
     int port = Integer.parseInt(args[0]);
-    ServerSocket serverSocket = new ServerSocket(port);
+    ServerSocket serverSocket;
     Socket clientSocket;
     //socket IO buffers
     PrintWriter outputBuffer; 
@@ -34,6 +32,7 @@ public class chatserve {
     SpeakingThread myThread; 
     while (true) {
       System.out.println("\nServer waiting for a connection on port " + port);
+      serverSocket = new ServerSocket(port);
       clientSocket = serverSocket.accept();
       outputBuffer = new PrintWriter(clientSocket.getOutputStream(), true);
       inputBuffer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -45,11 +44,14 @@ public class chatserve {
             System.out.flush();
             firstMessage = false;
             myThread.start();
-          } else if (inputLine.contains("/quit")) {
-            System.out.println("\nReceived /quit... Disconnecting from client...");
+          } else if (inputLine.contains("\\quit") || !myThread.isAlive()) {
+            System.out.println("\nDisconnecting from client due to \\quit command...");
             myThread.interrupt();
             myThread = null;
+            serverSocket.close();
+            serverSocket = null;
             clientSocket.close();
+            clientSocket = null;
             outputBuffer = null;
             inputBuffer = null;
             System.gc();
