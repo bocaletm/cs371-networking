@@ -24,6 +24,7 @@
 #include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>  
 //for forking
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -206,21 +207,35 @@ char* execute(char* message) {
   int maxLength = 1000000;
   FILE* inputFile;
   long fileBytes;
-  DIR* directory;
-  struct dirent *directory;
+  DIR* dir;
+  struct dirent* directory;
+  char* token = 0;
+  char* tempDir = 0;
+  const char space[2] = " ";
+
   result = malloc(sizeof(char) * (maxLength + 1));
   memset(result,'\0',(maxLength));
+  
+  tempDir = malloc(sizeof(char) * 256);
+  memset(tempDir,'\0',256);
 
+  
   if (message[1] == 'l') {
-    directory = opendir(".");
-    if (directory != 0) {
-      strcpy(result,directory->dir_name,maxLength);
+    dir = opendir(".");
+    if (dir) {
+      while ((directory = readdir(dir)) != NULL) {
+        memset(tempDir,'\0',256);
+        sprintf(tempDir,"%s ",directory->d_name);
+        strcat(result,tempDir);
+      }
     } else {
       strcpy(result,"Error: could not get directory list\n");
     }
   } else {
-    inputFile = open(FILEPATH, O_RDONLY, 0600);
-    if (fileDescriptor < 0) {
+    token = strtok(message,space);
+    token = strtok(NULL,space);
+    inputFile = fopen(token, "r");
+    if (inputFile < 0) {
       strcpy(result,"Error: could not open file\n");
     } else {
       fseek(inputFile, 0L, SEEK_END);
@@ -234,25 +249,82 @@ char* execute(char* message) {
 }
 
 /**********************
+ * sendMessage(): in this function, this program is the client
+ * ********************/
+void sendMessage(char* hostName, int port, char* msg) {
+  int socketFD, charsWritten = 0, totalSent = 0;
+  struct sockaddr_in serverAddress;
+  struct hostent* serverHostInfo;
+
+  // Set up the server address struct
+  memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
+  serverAddress.sin_family = AF_INET; // Create a network-capable socket
+  serverAddress.sin_port = htons(port); // Store the port number
+  serverHostInfo = gethostbyname(hostName); // Convert the machine name into a special form of address
+  if (serverHostInfo == NULL) { 
+    errorx("ERROR, no such host\n"); 
+  }
+  memcpy((char*)&serverAddress.sin_addr.s_addr, (char*)serverHostInfo->h_addr, serverHostInfo->h_length); // Copy in the address
+
+  // create the socket
+  socketFD = socket(AF_INET, SOCK_STREAM, 0); 
+  if (socketFD < 0) { 
+    error("ERROR opening socket\n");
+  }
+  
+  if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
+    char errorMsg[50];
+    memset(errorMsg,'\0',50);
+    sprintf(errorMsg,"Error: could not contact %s on port %d\n",hostName, port);
+    fprintf(stderr,errorMsg);
+    fflush(stderr);
+  }
+
+  // Send message to server
+  while (totalSent < strlen(msg)) {
+    charsWritten = send(socketFD, msg, strlen(msg), 0); // Write to the server
+    totalSent += charsWritten;
+  }
+  //close the socket
+  close(socketFD); 
+}
+
+/**********************
  * readCommands()
  **********************/
 void readCommands(int FD,int transferPort) {
+  char* hostname = 0;
   char* result = 0;
   int maxLength = 260; //this is the max length of a unix path + command + space + newline
   char* message = 0;
+  char* error = 0;
+
   while (1) {
+    hostname = malloc(sizeof(char) * 25);
+    memset(hostname,'\0',25);
+    
     message = malloc(sizeof(char) * (maxLength + 1));
     memset(message,'\0',(maxLength + 1));
+    
+    error = malloc(sizeof(char) * 50);
+    memset(error,'\0',50);
+
+    sprintf(error,"Error: invalid command\n");
+
+    sprintf(hostname,"localhost");
+
     readSocket(FD,message);
     //check for valid path length and command
     if (message[260] != '\0' || message[0] != '-' || message[1] != 'g' || message[1] != 'l') { 
-      sendMessage(transferPort,"e\0");
+      sendMessage(hostname,transferPort,error);
     } else {
       result = execute(message);
-      sendMessage(tranferPort,result);
+      sendMessage(hostname,transferPort,result);
     }
     free(message);
     message = 0;
+    free(error);
+    error = 0;
     if (result != 0) {
       free(result);
       result = 0;
@@ -277,11 +349,12 @@ int main(int argc, char *argv[]) {
   //read transfer port from client
   char portBuffer[10];
   memset(portBuffer,'\0',10);
-  readSocket(controlConnection->connectionFD,portBuffer); 
+  readSocket((controlConnection.connectionFD),portBuffer); 
   int transferPort = atoi(portBuffer);
+  
 
   //get commands from client
-  readCommands(controlConnection->connectionFD,transferPort);
+  readCommands((controlConnection.connectionFD),transferPort);
 
   //  pid_t spawnpid[MAX_FORKS];
   //spawnThreads(spawnpid);
