@@ -14,7 +14,6 @@ import java.io.DataInputStream;
 import java.nio.ByteBuffer;
 import java.lang.Object;
 
-//Socket code based on example here: https://docs.oracle.com/javase/tutorial/displayCode.html?code=https://docs.oracle.com/javase/tutorial/networking/sockets/examples/EchoClient.java
 public class ftclient {
   public static void main(String[] args) throws IOException {
     if (args.length < 4 || args.length > 5) {
@@ -27,22 +26,19 @@ public class ftclient {
     String command = args[2];
     int transferPort;
     String fileName;
-
+    String message;
+    
+    //handle different usage 
     if (args.length == 4) {
       transferPort = Integer.parseInt(args[3]);
+      message = command;
     } else {
       fileName = args[3];
       transferPort = Integer.parseInt(args[4]);
+      message = command + " " + fileName;
     }
-   
-    try ( 
-      PrintWriter out = new PrintWriter(serverSocket.getOutputStream(), true);
-      BufferedReader in = new BufferedReader(new InputStreamReader(serverSocket.getInputStream()));
-      BufferedReader stdIn = new BufferedReader(new InputStreamReader(System.in));
-      Socket serverSocket = new Socket(serverHost,serverPort);
-    ) {
-      out.println(command + " " + fileName);
-      waitForResponse(
-    }
+    //handle server interaction
+    ConnectSocket connection = new ConnectSocket(serverHost,serverPort,transferPort,message);
+    connection.run();
   } 
 }
