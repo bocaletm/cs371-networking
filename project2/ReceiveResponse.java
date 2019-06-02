@@ -17,7 +17,7 @@ public class ReceiveResponse {
   public ReceiveResponse(int tp) {
     this.transferPort = tp;
   }
-  public void run() throws IOException {
+  public void startListening() throws IOException {
     //the client acts like a server to accept data from ftserver
     ServerSocket serverSocket;
     Socket clientSocket;

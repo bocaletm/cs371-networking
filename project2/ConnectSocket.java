@@ -28,7 +28,7 @@ public class ConnectSocket {
     this.transferPort = tp;
     this.message = msg;
   }
-  public void run() throws UnknownHostException, IOException, InterruptedException {
+  public void connect() throws UnknownHostException, IOException, InterruptedException {
     try (Socket controlSocket = new Socket(serverHost,serverPort);
       PrintWriter out = new PrintWriter(controlSocket.getOutputStream(), true);
       BufferedReader in = new BufferedReader(new InputStreamReader(controlSocket.getInputStream()));
@@ -47,6 +47,7 @@ public class ConnectSocket {
         out.println(message + "@");
         //only wait for data if there was no error with the request
         responseGetter = new ReceiveResponse(transferPort);
+        responseGetter.startListening();
       }
       controlSocket.close();
     } catch (UnknownHostException e) {

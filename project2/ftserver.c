@@ -130,7 +130,7 @@ void acceptConnection(int portNumber,struct socketFDs* socketInfoPtr) {
  * readSocket(): read command from client
  ***********************/
 void readSocket(int establishedConnectionFD, char* message) {
-  int midx = 0, i, charsRead = -1;
+  int charsRead = -1;
   int bufferSize = 256;
   char buffer[bufferSize];
   if (establishedConnectionFD > 0) {
@@ -203,10 +203,25 @@ char* execute(char* message) {
 }
 
 /**********************
+ * writeSocket()
+ * ********************/
+void writeSocket(int FD, char* msg) {
+  int totalSent = -5;
+  int charsWritten = -5;
+
+  //write message to socket 
+  while (totalSent < strlen(msg)) {
+    charsWritten = send(FD, msg, strlen(msg), 0); // Write to the server
+    totalSent += charsWritten;
+  }
+}
+
+/**********************
  * sendMessage(): in this function, this program is the client
+ * https://beej.us/guide/bgnet/html/multi/getnameinfoman.html
  * ********************/
 void sendMessage(char* hostName, int port, char* msg) {
-  int socketFD, charsWritten = 0, totalSent = 0;
+  int socketFD;
   struct sockaddr_in serverAddress;
   struct hostent* serverHostInfo;
 
@@ -241,24 +256,9 @@ void sendMessage(char* hostName, int port, char* msg) {
 }
 
 /**********************
- * writeSocket()
- * ********************/
-void writeSocket(int FD, char* msg) {
-  int totalSent = -5;
-  int charsWritten = -5;
-
-  //write message to socket 
-  while (totalSent < strlen(msg)) {
-    charsWritten = send(FD, msg, strlen(msg), 0); // Write to the server
-    totalSent += charsWritten;
-  }
-}
-
-/**********************
  * readCommands()
  **********************/
 void readCommands(int FD,int transferPort) {
-  char* result = 0;
   int maxLength = 260; //this is the max length of a unix path + command + space + newline
   char* message = 0;
   char* error = 0;

@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 import java.lang.Object;
 
 public class ftclient {
-  public static void main(String[] args) throws IOException {
+  public static void main(String[] args) throws IOException, InterruptedException {
     if (args.length < 4 || args.length > 5) {
       System.err.println("Usage: java ftclient - argument count incorrect");
       System.exit(1);
@@ -39,6 +39,6 @@ public class ftclient {
     }
     //handle server interaction
     ConnectSocket connection = new ConnectSocket(serverHost,serverPort,transferPort,message);
-    connection.run();
+    connection.connect();
   } 
 }
