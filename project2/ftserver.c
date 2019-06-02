@@ -219,7 +219,6 @@ char* execute(char* message) {
   tempDir = malloc(sizeof(char) * 256);
   memset(tempDir,'\0',256);
 
-  
   if (message[1] == 'l') {
     dir = opendir(".");
     if (dir) {
