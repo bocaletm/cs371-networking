@@ -36,7 +36,7 @@ public class ConnectSocket {
       ReceiveResponse responseGetter;
       String serverResponse = "";
       //send the transfer port to the server
-      out.println(transferPort);
+      out.println(transferPort + "@");
       //give the server a second to process errors
       TimeUnit.SECONDS.sleep(1);
       //if there was an error, echo it out 
@@ -44,6 +44,7 @@ public class ConnectSocket {
       if (serverResponse.contains("Error")) {
         System.out.println(serverResponse);
       } else {
+        out.println(message + "@");
         //only wait for data if there was no error with the request
         responseGetter = new ReceiveResponse(transferPort);
       }

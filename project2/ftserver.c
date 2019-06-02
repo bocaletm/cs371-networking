@@ -131,69 +131,24 @@ void acceptConnection(int portNumber,struct socketFDs* socketInfoPtr) {
  ***********************/
 void readSocket(int establishedConnectionFD, char* message) {
   int midx = 0, i, charsRead = -1;
-  int bufferSize = 100000;
-  char longbuffer[bufferSize];
+  int bufferSize = 256;
+  char buffer[bufferSize];
   if (establishedConnectionFD > 0) {
-    memset(longbuffer, '\0', bufferSize);
-    charsRead = recv(establishedConnectionFD, longbuffer, bufferSize - 1, 0); // Read the client's message from the socket
-    if (charsRead < 0) {
-      error("ERROR reading from socket\n");
-    } 
-
-    for (i = 0; i < bufferSize; i++) {
-      message[midx] = longbuffer[i];
-      midx++;
-    }
-
-    while(strstr(longbuffer,"@") == NULL) {
-      charsRead = recv(establishedConnectionFD, longbuffer, bufferSize - 1, 0); // Read the client's message from the socket
+    while(strstr(message,"@") == NULL) {
+      memset(buffer, '\0', bufferSize);
+      charsRead = recv(establishedConnectionFD, buffer, bufferSize - 1, 0); // Read the client's message from the socket
       if (charsRead < 0) {
         error("ERROR reading from socket");
+        break;
+      } else {
+        strcat(message,buffer);
       }
-      strcat(message,longbuffer);
     }
-  }
-}
-
-/**********************
- * spawnThreads()
- **********************/
-void spawnThreads(pid_t* spawnpid) {
-  int i;
-  //spawn worker processes
-  for (i = 0; i < MAX_FORKS; i++) {
-    spawnpid[i] = fork();
-    if (spawnpid[i] == -1) {
-      errorx("Fork error. Exiting.\n");
-      /*********************************************
-       * CHILD PROCESSES
-       * *******************************************/
-    } else if (spawnpid[i] == 0) {
-      int mutexStatus;
-
-      while (1) {
-        //handler to wake up on sigcont
-        signal(SIGCONT,handler);
-
-        //do not let broken pipe kill process
-        signal(SIGPIPE,SIG_IGN);
-
-        //sleep until parent signals
-        pause();
-
-        //try to lock the mutex
-
-        mutexStatus = pthread_mutex_trylock(&socketLock);
-
-        //loop back if another process picked up the job
-        if (mutexStatus == EBUSY) {
-          continue;
-        }
-
-        //unlock mutex
-        pthread_mutex_unlock(&socketLock);
-      }
-      exit(0);
+    //null terminate message
+    int end;
+    end = strstr(message,"@") - message;
+    if (end) {
+      message[end] = '\0';
     }
   }
 }
@@ -215,7 +170,7 @@ char* execute(char* message) {
 
   result = malloc(sizeof(char) * (maxLength + 1));
   memset(result,'\0',(maxLength));
-  
+
   tempDir = malloc(sizeof(char) * 256);
   memset(tempDir,'\0',256);
 
@@ -270,7 +225,7 @@ void sendMessage(char* hostName, int port, char* msg) {
   if (socketFD < 0) { 
     error("ERROR opening socket\n");
   }
-  
+
   if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
     char errorMsg[50];
     memset(errorMsg,'\0',50);
@@ -279,56 +234,55 @@ void sendMessage(char* hostName, int port, char* msg) {
     fflush(stderr);
   }
 
-  // Send message to server
-  while (totalSent < strlen(msg)) {
-    charsWritten = send(socketFD, msg, strlen(msg), 0); // Write to the server
-    totalSent += charsWritten;
-  }
+  writeSocket(socketFD,msg);
+
   //close the socket
   close(socketFD); 
+}
+
+/**********************
+ * writeSocket()
+ * ********************/
+void writeSocket(int FD, char* msg) {
+  int totalSent = -5;
+  int charsWritten = -5;
+
+  //write message to socket 
+  while (totalSent < strlen(msg)) {
+    charsWritten = send(FD, msg, strlen(msg), 0); // Write to the server
+    totalSent += charsWritten;
+  }
 }
 
 /**********************
  * readCommands()
  **********************/
 void readCommands(int FD,int transferPort) {
-  char* hostname = 0;
   char* result = 0;
   int maxLength = 260; //this is the max length of a unix path + command + space + newline
   char* message = 0;
   char* error = 0;
 
-  while (1) {
-    hostname = malloc(sizeof(char) * 25);
-    memset(hostname,'\0',25);
-    
-    message = malloc(sizeof(char) * (maxLength + 1));
-    memset(message,'\0',(maxLength + 1));
-    
-    error = malloc(sizeof(char) * 50);
-    memset(error,'\0',50);
+  message = malloc(sizeof(char) * (maxLength + 1));
+  memset(message,'\0',(maxLength + 1));
 
-    sprintf(error,"Error: invalid command\n");
+  error = malloc(sizeof(char) * 50);
+  memset(error,'\0',50);
 
-    sprintf(hostname,"localhost");
+  sprintf(error,"Error: invalid command\n");
 
-    readSocket(FD,message);
-    //check for valid path length and command
-    if (message[260] != '\0' || message[0] != '-' || message[1] != 'g' || message[1] != 'l') { 
-      sendMessage(hostname,transferPort,error);
-    } else {
-      result = execute(message);
-      sendMessage(hostname,transferPort,result);
-    }
-    free(message);
-    message = 0;
-    free(error);
-    error = 0;
-    if (result != 0) {
-      free(result);
-      result = 0;
-    }
+  readSocket(FD,message);
+  //check for valid path length and command
+  if (message[260] != '\0' || message[0] != '-' || message[1] != 'g' || message[1] != 'l') { 
+    writeSocket(FD,error);
+  } else {
+    result = execute(message);
+    sendMessage(hostname,transferPort);
   }
+  free(message);
+  message = 0;
+  free(error);
+  error = 0;
 }
 
 /************************
@@ -350,21 +304,7 @@ int main(int argc, char *argv[]) {
   memset(portBuffer,'\0',10);
   readSocket((controlConnection.connectionFD),portBuffer); 
   int transferPort = atoi(portBuffer);
-  
 
   //get commands from client
   readCommands((controlConnection.connectionFD),transferPort);
-
-  //  pid_t spawnpid[MAX_FORKS];
-  //spawnThreads(spawnpid);
-
-  /*********************************************
-   * PARENT PROCESS
-   * *******************************************/
-
-  //wake up children
-  //  int i;
-  //  for (i = 0; i < MAX_FORKS; i++) {
-  //    kill(spawnpid[i],SIGCONT);
-  //  }
 }
