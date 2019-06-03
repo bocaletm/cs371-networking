@@ -39,16 +39,19 @@ public class ConnectSocket {
       //send the transfer port to the server
       out.println(transferPort + "@");
       //give the server a second to process errors
-      TimeUnit.MINUTES.sleep(1);
+      TimeUnit.SECONDS.sleep(2);
       //if there was an error, echo it out 
       serverResponse = in.readLine();
       if (serverResponse.contains("Error")) {
         System.out.println(serverResponse);
-      } else {
+      } else if (serverResponse.contains("OK")) {
+        TimeUnit.SECONDS.sleep(2);
         out.println(message + "@");
         //only wait for data if there was no error with the request
         responseGetter = new ReceiveResponse(transferPort);
         responseGetter.startListening();
+      } else {
+        System.out.println("Error. Unknown server response.\n");
       }
       controlSocket.close();
     } catch (UnknownHostException e) {

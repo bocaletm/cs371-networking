@@ -128,7 +128,7 @@ struct sockaddr_in  acceptConnection(int portNumber,struct socketFDs* socketInfo
   if (socketInfoPtr->connectionFD < 0) {
     errorx("ERROR on accept");
   }
-  printf("ftserver connected to client.. returning address\n");
+  printf("ftserver connected to client\n");
   return clientAddress;
 }
 
@@ -261,37 +261,27 @@ void sendMessage(char* hostName, int port, char* msg) {
 
 /**********************
  * readCommands()
+ * returns 0 for errors
  **********************/
-void readCommands(int FD, char* clientName, int transferPort) {
+int readCommands(char* message, char* clientName, int transferPort) {
   int maxMsg = 260; //this is the max length of a unix path + command + space + newline
-  char* message = 0;
-  char* error = 0;
+  int error = 1;
   char* result = 0;
 
-  message = malloc(sizeof(char) * (maxMsg + 1));
-  memset(message,'\0',(maxMsg + 1));
 
-  error = malloc(sizeof(char) * 50);
-  memset(error,'\0',50);
-
-  sprintf(error,"Error: invalid command\n");
-
-  readSocket(FD,message);
   //check for valid path length and command
-  if (message[260] != '\0' || message[0] != '-' || message[1] != 'g' || message[1] != 'l') { 
-    writeSocket(FD,error);
+  if (message[maxMsg] != '\0' || message[0] != '-' || message[1] != 'g' || message[1] != 'l') { 
+    error = 0;
   } else {
     result = execute(message);
     sendMessage(clientName,transferPort,result);
   }
 
-  free(message);
-  message = 0;
-  free(error);
-  error = 0;
   if (result) {
     free(result);
   }
+
+  return error;
 }
 
 /************************
@@ -301,8 +291,10 @@ void readCommands(int FD, char* clientName, int transferPort) {
  ************************/
 void getClientName(char* clientName, struct sockaddr_in clientAddress) {
   char service[20];
+  char host[50];
   struct sockaddr* clientAddressPtr = (struct sockaddr*)&clientAddress; //must cast to regular sockaddr
-  getnameinfo(clientAddressPtr, sizeof clientAddress, clientName, sizeof clientName, service, sizeof service, 0);
+  getnameinfo(clientAddressPtr, sizeof(clientAddress), host, sizeof(host), service, sizeof(service), 0);
+  strcpy(clientName,host);
 }
 
 /************************
@@ -323,14 +315,44 @@ int main(int argc, char *argv[]) {
   char portBuffer[10];
   memset(portBuffer,'\0',10);
   readSocket((controlConnection.connectionFD),portBuffer); 
-  int transferPort = atoi(portBuffer);
-  printf("ftserver read transfer port %d from client\n",transferPort);
+
+  int transferPort; 
+  char* response; 
+  int resLength = 260;
+  if (portBuffer[0] != '\0') { 
+    transferPort = atoi(portBuffer);
+    //compose response to client
+    response = malloc(resLength * sizeof(char));
+    memset(response,'\0',resLength);
+    sprintf(response,"OK : received %d",transferPort);
+    printf("ftserver read transfer port %d from client\n",transferPort);
+    writeSocket((controlConnection.connectionFD),response);
+    memset(response,'\0',resLength);
+  } else {
+    printf("Error. Bad response from client\n");
+    exit(1);
+  }
 
   //get the client hostname
   char clientname[1025];
   memset(clientname,'\0',1025);
   getClientName(clientname,clientAddress);
+  printf("ftserver read clientname as %s\n",clientname);
 
+  //read the command from client
+  readSocket((controlConnection.connectionFD),response);
+  //CLOSE SOCKET HERE
+  
+  char* error = 0;
+  error = malloc(sizeof(char) * 50);
+  memset(error,'\0',50);
+  sprintf(error,"ftserver Error: invalid command\n");
+  
   //get commands from client
-  readCommands((controlConnection.connectionFD),clientname,transferPort);
+  if (!readCommands(response,clientname,transferPort)) {
+    writeSocket((controlConnection.connectionFD),error);
+  }
+
+  free(error);
+  free(response);
 }
