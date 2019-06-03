@@ -162,9 +162,7 @@ void readSocket(int establishedConnectionFD, char* message) {
  * execute(): try to execute the command
  * returns the result of the command as a string or an error
  * **********************/
-char* execute(char* message) {
-  char* result;
-  int maxLength = 1000000;
+void execute(char* message,char* result) {
   FILE* inputFile;
   long fileBytes;
   DIR* dir;
@@ -173,8 +171,6 @@ char* execute(char* message) {
   char* tempDir = 0;
   const char space[2] = " ";
 
-  result = malloc(sizeof(char) * (maxLength + 1));
-  memset(result,'\0',(maxLength));
 
   tempDir = malloc(sizeof(char) * 256);
   memset(tempDir,'\0',256);
@@ -203,21 +199,6 @@ char* execute(char* message) {
       fread(result,sizeof(char),fileBytes,inputFile);
       fclose(inputFile);
     }
-  }
-  return result;
-}
-
-/**********************
- * writeSocket()
- * ********************/
-void writeSocket(int FD, char* msg) {
-  int totalSent = -5;
-  int charsWritten = -5;
-
-  //write message to socket 
-  while (totalSent < strlen(msg)) {
-    charsWritten = send(FD, msg, strlen(msg), 0); // Write to the server
-    totalSent += charsWritten;
   }
 }
 
@@ -253,7 +234,13 @@ void sendMessage(char* hostName, int port, char* msg) {
     fflush(stderr);
   }
 
-  writeSocket(socketFD,msg);
+  //write to socket
+  int totalSent = 0;
+  int charsWritten = -5; 
+  while (totalSent < strlen(msg)) {
+    charsWritten = send(socketFD, msg, strlen(msg), 0); // Write to the server
+    totalSent += charsWritten;
+  }
 
   //close the socket
   close(socketFD); 
@@ -264,16 +251,21 @@ void sendMessage(char* hostName, int port, char* msg) {
  * returns 0 for errors
  **********************/
 int readCommands(char* message, char* clientName, int transferPort) {
-  int maxMsg = 260; //this is the max length of a unix path + command + space + newline
-  int error = 1;
+  int read = 1;
   char* result = 0;
-
+  int maxLength = 10000;
+  result = malloc(sizeof(char) * (maxLength + 1));
+  memset(result,'\0',(maxLength));
 
   //check for valid path length and command
-  if (message[maxMsg] != '\0' || message[0] != '-' || message[1] != 'g' || message[1] != 'l') { 
-    error = 0;
+  if (message[0] != '-' && (message[1] != 'g' || message[1] != 'l')) { 
+    read = 0;
   } else {
-    result = execute(message);
+    execute(message,result);
+    printf("ftserver command result: %s",result);
+    sleep(2);
+    printf("ftserver sending result to client\n");
+    sleep(2);
     sendMessage(clientName,transferPort,result);
   }
 
@@ -281,7 +273,7 @@ int readCommands(char* message, char* clientName, int transferPort) {
     free(result);
   }
 
-  return error;
+  return read;
 }
 
 /************************
@@ -317,17 +309,12 @@ int main(int argc, char *argv[]) {
   readSocket((controlConnection.connectionFD),portBuffer); 
 
   int transferPort; 
-  char* response; 
-  int resLength = 260;
+  char* command; 
+  int cmdLength = 260;
   if (portBuffer[0] != '\0') { 
     transferPort = atoi(portBuffer);
-    //compose response to client
-    response = malloc(resLength * sizeof(char));
-    memset(response,'\0',resLength);
-    sprintf(response,"OK : received %d",transferPort);
-    printf("ftserver read transfer port %d from client\n",transferPort);
-    writeSocket((controlConnection.connectionFD),response);
-    memset(response,'\0',resLength);
+    command = malloc(cmdLength * sizeof(char));
+    memset(command,'\0',cmdLength);
   } else {
     printf("Error. Bad response from client\n");
     exit(1);
@@ -339,20 +326,25 @@ int main(int argc, char *argv[]) {
   getClientName(clientname,clientAddress);
   printf("ftserver read clientname as %s\n",clientname);
 
+
   //read the command from client
-  readSocket((controlConnection.connectionFD),response);
+  readSocket((controlConnection.connectionFD),command);
+
   //CLOSE SOCKET HERE
-  
+  //close(controlConnection.connectionFD);
+
+  printf("ftserver received command %s", command);
+
   char* error = 0;
   error = malloc(sizeof(char) * 50);
   memset(error,'\0',50);
-  sprintf(error,"ftserver Error: invalid command\n");
-  
+  sprintf(error,"ftserver Error: invalid command - ");
+
   //get commands from client
-  if (!readCommands(response,clientname,transferPort)) {
-    writeSocket((controlConnection.connectionFD),error);
+  if (!readCommands(command,clientname,transferPort)) {
+    printf("%s%s\n",error,command);
   }
 
   free(error);
-  free(response);
+  free(command);
 }

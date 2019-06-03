@@ -25,14 +25,15 @@ public class ReceiveResponse {
     PrintWriter outputBuffer; 
     BufferedReader inputBuffer;  
     serverSocket = new ServerSocket(transferPort);
+    System.out.println("ftclient waiting for server response");
     clientSocket = serverSocket.accept();
     outputBuffer = new PrintWriter(clientSocket.getOutputStream(), true);
     inputBuffer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-    String inputLine = "";
+    String inputLine = null;
     try {
+      System.out.println("ftclient reading from socket");
       while ((inputLine = inputBuffer.readLine()) != null) {
-        System.out.println();
-        System.out.println(inputLine);
+        System.out.println("ftserver " + inputLine);
       }
     } catch (IOException e) {
       System.out.println("java ReceiveResponse IO Exception");

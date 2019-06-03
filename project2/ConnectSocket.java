@@ -33,26 +33,16 @@ public class ConnectSocket {
         PrintWriter out = new PrintWriter(controlSocket.getOutputStream(), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(controlSocket.getInputStream()));
        ) {
-      System.out.println("foo");
       ReceiveResponse responseGetter;
       String serverResponse = "";
       //send the transfer port to the server
       out.println(transferPort + "@");
       //give the server a second to process errors
       TimeUnit.SECONDS.sleep(2);
-      //if there was an error, echo it out 
-      serverResponse = in.readLine();
-      if (serverResponse.contains("Error")) {
-        System.out.println(serverResponse);
-      } else if (serverResponse.contains("OK")) {
-        TimeUnit.SECONDS.sleep(2);
-        out.println(message + "@");
-        //only wait for data if there was no error with the request
-        responseGetter = new ReceiveResponse(transferPort);
-        responseGetter.startListening();
-      } else {
-        System.out.println("Error. Unknown server response.\n");
-      }
+      out.println(message + "@");
+      //only wait for data if there was no error with the request
+      responseGetter = new ReceiveResponse(transferPort);
+      responseGetter.startListening();
       controlSocket.close();
     } catch (UnknownHostException e) {
       System.out.println("Error. Unknown host trying to connect to " + serverHost);

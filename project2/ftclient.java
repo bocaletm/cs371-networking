@@ -37,10 +37,8 @@ public class ftclient {
       transferPort = Integer.parseInt(args[4]);
       message = command + " " + fileName;
     }
-    System.out.println("calling ConnectSocket");
     //handle server interaction
     ConnectSocket connection = new ConnectSocket(serverHost,serverPort,transferPort,message);
-    System.out.println("calling connect");
     connection.connect();
   } 
 }
