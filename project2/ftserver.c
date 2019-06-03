@@ -36,6 +36,8 @@
 #include <errno.h>
 // to read directory
 #include <dirent.h>
+// for sockaddr
+#include <netinet/in.h>
 
 //mutex to control access to the socket
 pthread_mutex_t socketLock;
@@ -92,8 +94,9 @@ void encrypt(char* key, char* msg, int n) {
 /**********************
  * acceptConnection(): hangs on listen
  * puts file descriptors in parameter struct
+ * returns client address info
  * ********************/
-void acceptConnection(int portNumber,struct socketFDs* socketInfoPtr) {
+struct sockaddr_in  acceptConnection(int portNumber,struct socketFDs* socketInfoPtr) {
   socketInfoPtr->listenFD = -5;
   socketInfoPtr->connectionFD = -5;
   socklen_t sizeOfClientInfo;
@@ -118,12 +121,15 @@ void acceptConnection(int portNumber,struct socketFDs* socketInfoPtr) {
 
   listen(socketInfoPtr->listenFD,1); // Flip the socket on 
 
+  printf("ftserver waiting for connection on port %d\n",portNumber);
   // Accept a connection, blocking if one is not available until one connects
   sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
   socketInfoPtr->connectionFD = accept(socketInfoPtr->listenFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
   if (socketInfoPtr->connectionFD < 0) {
     errorx("ERROR on accept");
   }
+  printf("ftserver connected to client.. returning address\n");
+  return clientAddress;
 }
 
 /***********************
@@ -133,23 +139,22 @@ void readSocket(int establishedConnectionFD, char* message) {
   int charsRead = -1;
   int bufferSize = 256;
   char buffer[bufferSize];
-  if (establishedConnectionFD > 0) {
-    while(strstr(message,"@") == NULL) {
-      memset(buffer, '\0', bufferSize);
-      charsRead = recv(establishedConnectionFD, buffer, bufferSize - 1, 0); // Read the client's message from the socket
-      if (charsRead < 0) {
-        error("ERROR reading from socket");
-        break;
-      } else {
-        strcat(message,buffer);
-      }
+  printf("ftserver trying to read from socket\n");
+  while(strstr(message,"@") == NULL) {
+    memset(buffer, '\0', bufferSize);
+    charsRead = recv(establishedConnectionFD, buffer, bufferSize - 1, 0); // Read the client's message from the socket
+    if (charsRead < 0) {
+      error("ERROR reading from socket");
+      break;
+    } else {
+      strcat(message,buffer);
     }
-    //null terminate message
-    int end;
-    end = strstr(message,"@") - message;
-    if (end) {
-      message[end] = '\0';
-    }
+  }
+  //null terminate message
+  int end;
+  end = strstr(message,"@") - message;
+  if (end) {
+    message[end] = '\0';
   }
 }
 
@@ -218,7 +223,6 @@ void writeSocket(int FD, char* msg) {
 
 /**********************
  * sendMessage(): in this function, this program is the client
- * https://beej.us/guide/bgnet/html/multi/getnameinfoman.html
  * ********************/
 void sendMessage(char* hostName, int port, char* msg) {
   int socketFD;
@@ -258,13 +262,14 @@ void sendMessage(char* hostName, int port, char* msg) {
 /**********************
  * readCommands()
  **********************/
-void readCommands(int FD,int transferPort) {
-  int maxLength = 260; //this is the max length of a unix path + command + space + newline
+void readCommands(int FD, char* clientName, int transferPort) {
+  int maxMsg = 260; //this is the max length of a unix path + command + space + newline
   char* message = 0;
   char* error = 0;
+  char* result = 0;
 
-  message = malloc(sizeof(char) * (maxLength + 1));
-  memset(message,'\0',(maxLength + 1));
+  message = malloc(sizeof(char) * (maxMsg + 1));
+  memset(message,'\0',(maxMsg + 1));
 
   error = malloc(sizeof(char) * 50);
   memset(error,'\0',50);
@@ -277,12 +282,27 @@ void readCommands(int FD,int transferPort) {
     writeSocket(FD,error);
   } else {
     result = execute(message);
-    sendMessage(hostname,transferPort);
+    sendMessage(clientName,transferPort,result);
   }
+
   free(message);
   message = 0;
   free(error);
   error = 0;
+  if (result) {
+    free(result);
+  }
+}
+
+/************************
+ * getClientName()
+ * https://beej.us/guide/bgnet/html/multi/getnameinfoman.html
+ * puts hostname in parameter
+ ************************/
+void getClientName(char* clientName, struct sockaddr_in clientAddress) {
+  char service[20];
+  struct sockaddr* clientAddressPtr = (struct sockaddr*)&clientAddress; //must cast to regular sockaddr
+  getnameinfo(clientAddressPtr, sizeof clientAddress, clientName, sizeof clientName, service, sizeof service, 0);
 }
 
 /************************
@@ -297,14 +317,20 @@ int main(int argc, char *argv[]) {
   struct socketFDs controlConnection;
 
   //accept connection passing the port
-  acceptConnection(atoi(argv[1]),&controlConnection);
+  struct sockaddr_in clientAddress = acceptConnection(atoi(argv[1]),&controlConnection);
 
   //read transfer port from client
   char portBuffer[10];
   memset(portBuffer,'\0',10);
   readSocket((controlConnection.connectionFD),portBuffer); 
   int transferPort = atoi(portBuffer);
+  printf("ftserver read transfer port %d from client\n",transferPort);
+
+  //get the client hostname
+  char clientname[1025];
+  memset(clientname,'\0',1025);
+  getClientName(clientname,clientAddress);
 
   //get commands from client
-  readCommands((controlConnection.connectionFD),transferPort);
+  readCommands((controlConnection.connectionFD),clientname,transferPort);
 }

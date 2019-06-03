@@ -29,16 +29,17 @@ public class ConnectSocket {
     this.message = msg;
   }
   public void connect() throws UnknownHostException, IOException, InterruptedException {
-    try (Socket controlSocket = new Socket(serverHost,serverPort);
-      PrintWriter out = new PrintWriter(controlSocket.getOutputStream(), true);
-      BufferedReader in = new BufferedReader(new InputStreamReader(controlSocket.getInputStream()));
-    ) {
+    try( Socket controlSocket = new Socket(serverHost,serverPort);
+        PrintWriter out = new PrintWriter(controlSocket.getOutputStream(), true);
+        BufferedReader in = new BufferedReader(new InputStreamReader(controlSocket.getInputStream()));
+       ) {
+      System.out.println("foo");
       ReceiveResponse responseGetter;
       String serverResponse = "";
       //send the transfer port to the server
       out.println(transferPort + "@");
       //give the server a second to process errors
-      TimeUnit.SECONDS.sleep(1);
+      TimeUnit.MINUTES.sleep(1);
       //if there was an error, echo it out 
       serverResponse = in.readLine();
       if (serverResponse.contains("Error")) {
